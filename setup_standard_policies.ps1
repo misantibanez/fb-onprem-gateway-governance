@@ -9,6 +9,7 @@
 Connect-AzAccount
 
 # --- Conectar al servicio de Data Gateway ---
+pwsh
 Login-DataGatewayServiceAccount
 
 # --- 1. Restringir la política de gateways standard a nivel tenant ---
