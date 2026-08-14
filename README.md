@@ -5,7 +5,7 @@ Scripts de PowerShell para administrar las políticas de instalación de **On-pr
 ## Objetivo
 
 - **Bloquear** la creación de gateways de tipo **Personal** para todos los usuarios del tenant.
-- **Restringir** la instalación de gateways de tipo **Standard (Resource)** únicamente a usuarios o grupos autorizados, quienes los instalarán en las VMs designadas.
+- **Restringir** la instalación de gateways de tipo **Standard (Resource)** únicamente a usuarios autorizados directamente o mediante pertenencia a grupos de Entra ID, quienes los instalarán en las VMs designadas.
 
 ## Prerequisitos
 
@@ -34,7 +34,7 @@ Install-Module "Az.Resources" -Scope CurrentUser -Force
 ### Permisos requeridos
 
 - La cuenta que ejecute los scripts debe ser **Tenant Admin** o **Gateway Admin** en Power Platform.
-- Se requiere acceso a **Microsoft Entra ID** (Azure AD) para resolver Object IDs de usuarios/grupos.
+- Se requiere acceso a **Microsoft Entra ID** (Azure AD) para resolver usuarios, grupos y miembros de grupos.
 
 ## Scripts
 
@@ -54,18 +54,22 @@ Bloquea la instalación de gateways personales en todo el tenant.
 pwsh -File .\setup_personal_restricted.ps1
 ```
 
-### 2. `setup_standard_policies.ps1`
+### 2. `setup_standard_policies_groups.ps1`
 
-Restringe los gateways standard (Resource) y autoriza solo a usuarios específicos para instalarlos en las VMs definidas.
+Restringe los gateways standard (Resource) y autoriza a usuarios individuales y/o a los usuarios miembros de grupos de Microsoft Entra ID para instalarlos en las VMs definidas. Los grupos se expanden a sus miembros y también se procesan grupos anidados.
 
 | Paso | Acción | Cmdlet |
 |---|---|---|
 | 1 | Restringir política standard | `Set-DataGatewayTenantPolicy -ResourceGatewayInstallPolicy Restricted` |
-| 2 | Resolver Object IDs de usuarios | `Get-AzADUser -UserPrincipalName <UPN>` |
-| 3 | Autorizar usuarios para gateway standard | `Set-DataGatewayInstaller -GatewayType Resource -Operation Add` |
-| 4 | Verificar configuración | `Get-DataGatewayTenantPolicy` / `Get-DataGatewayInstaller` |
+| 2 | Resolver usuarios individuales | `Get-AzADUser -UserPrincipalName <UPN>` |
+| 3 | Resolver grupos y sus miembros | `Get-AzADGroup` / `Get-AzADGroupMember` |
+| 4 | Expandir grupos anidados y eliminar duplicados | Lógica interna del script |
+| 5 | Autorizar usuarios para gateway standard | `Set-DataGatewayInstaller -GatewayType Resource -Operation Add` |
+| 6 | Verificar configuración | `Get-DataGatewayTenantPolicy` / `Get-DataGatewayInstaller` |
 
-**Configuración:** editar el array `$authorizedUsers` con los UPNs de los usuarios autorizados:
+**Configuración:** el script permite combinar usuarios individuales y grupos.
+
+Usuarios individuales por UPN:
 
 ```powershell
 $authorizedUsers = @(
@@ -74,24 +78,37 @@ $authorizedUsers = @(
 )
 ```
 
-**Alternativa con grupo de Entra ID:** descomentar la sección de grupo y comentar el array de usuarios individuales:
+Grupos de Entra ID por `DisplayName`:
 
 ```powershell
-$groupId = (Get-AzADGroup -DisplayName "Gateway Installers").Id
-$objectIds = @($groupId)
+$authorizedGroups = @(
+    "Gateway Installers"
+    "Otro Grupo Autorizado"
+)
 ```
+
+También se pueden usar ambas listas simultáneamente. Si no se necesitan usuarios o grupos directos, dejar el array correspondiente vacío:
+
+```powershell
+$authorizedUsers = @()
+$authorizedGroups = @(
+    "Gateway Installers"
+)
+```
+
+> El script no autoriza el grupo directamente como principal. Primero expande cada grupo a sus usuarios miembros y envía los Object IDs de esos usuarios a `Set-DataGatewayInstaller`. También procesa grupos anidados, evita duplicados y protege frente a ciclos entre grupos.
 
 **Ejecución:**
 
 ```powershell
-pwsh -File .\setup_standard_policies.ps1
+pwsh -File .\setup_standard_policies_groups.ps1
 ```
 
 ## Orden de ejecución
 
 ```
 1. setup_personal_restricted.ps1   → Bloquea gateways personales
-2. setup_standard_policies.ps1     → Restringe standard y autoriza usuarios
+2. setup_standard_policies_groups.ps1 → Restringe standard y autoriza usuarios directos y miembros de grupos
 ```
 
 ## Valores de política
