@@ -21,14 +21,14 @@ Set-DataGatewayTenantPolicy -ResourceGatewayInstallPolicy Restricted
 # --- 2. Definir identidades autorizadas ---
 # Usuarios individuales por UPN. Dejar @() si no se necesitan usuarios directos.
 $authorizedUsers = @(
-    "usuario2@dominio.co"
+    #"usuario2@dominio.co"
     # "usuario3@dominio.com"
 )
 
 # Grupos de Entra ID por DisplayName.
 # Todos sus usuarios miembros serán autorizados. También se procesan grupos anidados.
 $authorizedGroups = @(
-    # "Gateway Installers"
+    "Gateway Installers"
     # "Otro Grupo Autorizado"
 )
 
